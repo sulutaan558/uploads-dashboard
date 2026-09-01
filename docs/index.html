@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<title>Uploads</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f4f2;
+    --surface-1: #fcfcfb;
+    --line:      #e2e2dd;
+    --track:     #e7e7e2;
+    --text-1:    #0b0b0b;
+    --text-2:    #52514e;
+    --text-3:    #86857f;
+    --series-1:  #2a78d6;
+    --series-2:  #eb6834;
+    --series-3:  #1baf7a;
+    --bad:       #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --line:      #33332f;
+      --track:     #2b2b28;
+      --text-1:    #ffffff;
+      --text-2:    #c3c2b7;
+      --text-3:    #8d8c83;
+      --series-1:  #3987e5;
+      --series-2:  #d95926;
+      --series-3:  #199e70;
+      --bad:       #e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: max(14px, env(safe-area-inset-top)) 14px 40px;
+    background: var(--surface-0); color: var(--text-1);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { font-size: 1.25rem; margin: 0; letter-spacing: -0.01em; }
+  .muted { color: var(--text-3); font-size: .82rem; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; margin-bottom: 14px;
+  }
+  .chead { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 2px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .cname { font-size: 1.05rem; font-weight: 620; }
+  .chead a { color: var(--text-2); font-size: .82rem; text-decoration: none; border-bottom: 1px solid var(--line); }
+  .sub { color: var(--text-2); font-size: .84rem; margin-bottom: 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .tile { background: var(--surface-0); border-radius: 10px; padding: 10px 12px; }
+  .tile .k { color: var(--text-3); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+  .tile .v { font-size: 1.35rem; font-weight: 640; font-variant-numeric: tabular-nums; margin-top: 3px; }
+  .tile .v small { font-size: .78rem; font-weight: 500; color: var(--text-3); }
+  .plot { width: 100%; height: 78px; display: block; touch-action: pan-y; }
+  .axis { display: flex; justify-content: space-between; color: var(--text-3); font-size: .72rem; margin-top: 4px; }
+  .issues { margin: 12px 0 0; padding: 10px 12px; background: var(--surface-0); border-radius: 10px;
+            border-left: 3px solid var(--bad); }
+  .issues p { margin: 0 0 4px; font-size: .84rem; color: var(--text-2); }
+  .issues p:last-child { margin-bottom: 0; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--text-2); font-size: .84rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: .84rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--text-3); font-weight: 560; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td a { color: var(--text-1); text-decoration: none; }
+  td a:hover { text-decoration: underline; }
+  .scroll { overflow-x: auto; }
+  #tip {
+    position: fixed; pointer-events: none; opacity: 0; transition: opacity .1s;
+    background: var(--text-1); color: var(--surface-1); font-size: .78rem;
+    padding: 5px 8px; border-radius: 7px; white-space: nowrap; z-index: 9;
+  }
+  .setup { max-width: 560px; margin: 60px auto; }
+  .setup code { background: var(--surface-1); padding: 2px 6px; border-radius: 5px; font-size: .86rem; }
+</style>
+</head>
+<body>
+<main id="app"><p class="muted">Loading…</p></main>
+<div id="tip"></div>
+
+<script>
+const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'];
+const app = document.getElementById('app');
+const tip = document.getElementById('tip');
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num = n => (n === null || n === undefined) ? '—' : n.toLocaleString();
+const compact = n => (n === null || n === undefined) ? '—'
+  : Intl.NumberFormat(undefined, {notation:'compact', maximumFractionDigits:1}).format(n);
+
+function keyFromUrl() {
+  const m = (location.hash || '').match(/[#&]k=([A-Za-z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+function b64urlToBytes(s) {
+  const b = atob(s.replace(/-/g,'+').replace(/_/g,'/') + '='.repeat((4 - s.length % 4) % 4));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+
+async function load() {
+  const k = keyFromUrl();
+  if (!k) {
+    app.innerHTML = `<div class="setup"><h1>Uploads</h1>
+      <p class="muted">This page needs its key. Open the full bookmark link — the one ending in
+      <code>#k=…</code>. The key stays in the address bar and is never sent to any server,
+      which is why the data can sit in a public repo.</p></div>`;
+    return;
+  }
+  let payload;
+  try {
+    const res = await fetch('data.enc?t=' + Date.now(), {cache: 'no-store'});
+    if (!res.ok) throw new Error('data.enc ' + res.status);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const key = await crypto.subtle.importKey('raw', b64urlToBytes(k), 'AES-GCM', false, ['decrypt']);
+    const plain = await crypto.subtle.decrypt(
+      {name:'AES-GCM', iv: buf.slice(0,12)}, key, buf.slice(12));
+    payload = JSON.parse(new TextDecoder().decode(plain));
+  } catch (e) {
+    app.innerHTML = `<div class="setup"><h1>Could not read the data</h1>
+      <p class="muted">${esc(e.message)}. Either the key in the link is wrong, or the sync has not
+      published anything yet.</p></div>`;
+    return;
+  }
+  render(payload);
+}
+
+// --- next scheduled upload, in the reader's own timezone -------------------
+function nextRun(slots) {
+  const now = new Date();
+  let best = null;
+  for (const t of Object.values(slots)) {
+    const [h, m] = t.split(':').map(Number);
+    for (const addDays of [0, 1]) {
+      const d = new Date(Date.UTC(
+        now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + addDays, h, m, 0));
+      if (d > now && (!best || d < best)) best = d;
+    }
+  }
+  return best;
+}
+function untilText(d) {
+  const ms = d - new Date();
+  const h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000);
+  return h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
+}
+
+// --- one 30-day strip per channel (small multiples: one series each) -------
+function strip(days, colour) {
+  const W = 100, H = 78, pad = 2;
+  const maxDue = Math.max(1, ...days.map(d => Math.max(d.due, d.uploaded)));
+  const bw = W / days.length;
+  const parts = days.map((d, i) => {
+    const x = i * bw + pad / 2, w = Math.max(bw - pad, 1.4);
+    const track = d.due ? (d.due / maxDue) * (H - 14) : 0;
+    const fill  = (d.uploaded / maxDue) * (H - 14);
+    const r = Math.min(w / 2, 2);
+    return `
+      ${track ? `<rect x="${x.toFixed(2)}" y="${(H - 12 - track).toFixed(2)}" width="${w.toFixed(2)}"
+        height="${track.toFixed(2)}" rx="${r}" fill="var(--track)"></rect>` : ''}
+      ${fill ? `<rect x="${x.toFixed(2)}" y="${(H - 12 - fill).toFixed(2)}" width="${w.toFixed(2)}"
+        height="${fill.toFixed(2)}" rx="${r}" fill="${colour}"></rect>` : ''}
+      <rect class="hit" x="${(i * bw).toFixed(2)}" y="0" width="${bw.toFixed(2)}" height="${H}"
+        fill="transparent" data-t="${esc(d.day)} · ${d.uploaded}/${d.due} posted"></rect>`;
+  }).join('');
+  return `<svg class="plot" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+     aria-label="uploads per day for the last ${days.length} days">
+     <line x1="0" y1="${H - 11}" x2="${W}" y2="${H - 11}" stroke="var(--line)" stroke-width="1"
+       vector-effect="non-scaling-stroke"></line>${parts}</svg>`;
+}
+
+function channelCard(c, i) {
+  const colour = SERIES[i % SERIES.length];
+  const posted = c.days.reduce((a, d) => a + d.uploaded, 0);
+  const due    = c.days.reduce((a, d) => a + d.due, 0);
+  const nxt = Object.keys(c.slots).length ? nextRun(c.slots) : null;
+  const yt = c.yt;
+
+  const tiles = [
+    yt ? `<div class="tile"><div class="k">Subscribers</div><div class="v">${num(yt.subs)}</div></div>` : '',
+    yt ? `<div class="tile"><div class="k">Channel views</div><div class="v">${compact(yt.views)}</div></div>` : '',
+    `<div class="tile"><div class="k">Posted ${c.days.length}d</div>
+       <div class="v">${posted}<small> / ${due} due</small></div></div>`,
+    `<div class="tile"><div class="k">Next upload</div>
+       <div class="v" style="font-size:1.05rem">${nxt ? esc(untilText(nxt)) : '—'}
+       <small>${nxt ? esc(nxt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})) : ''}</small></div></div>`,
+  ].join('');
+
+  const rows = c.recent.map(v => `<tr>
+      <td><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc((v.title || '').slice(0, 60) || v.yt_id)}</a></td>
+      <td class="n">${compact(v.yt_views)}</td>
+      <td class="n">${compact(v.tiktok_views)}</td>
+      <td class="n muted">${esc((v.at || '').slice(0, 10))}</td>
+    </tr>`).join('');
+
+  return `<section class="card">
+    <div class="chead">
+      <span class="dot" style="background:${colour}"></span>
+      <span class="cname">${esc(c.name)}</span>
+      ${c.youtube_channel_id ? `<a href="https://www.youtube.com/channel/${esc(c.youtube_channel_id)}"
+         target="_blank" rel="noopener">open channel ↗</a>` : ''}
+    </div>
+    <div class="sub">from @${esc(c.tiktok)}${c.tiktok_slot2 ? ' + @' + esc(c.tiktok_slot2) : ''}
+      · ${c.videos_per_day}/day${c.enabled ? '' : ' · <strong>disabled</strong>'}</div>
+    <div class="tiles">${tiles}</div>
+    ${strip(c.days, colour)}
+    <div class="axis"><span>${esc(c.days[0]?.day.slice(5) || '')}</span>
+      <span>uploads per day — full bar = every due slot posted</span>
+      <span>${esc(c.days.at(-1)?.day.slice(5) || '')}</span></div>
+    ${c.issues.length ? `<div class="issues">${c.issues.map(t => `<p>${esc(t)}</p>`).join('')}</div>` : ''}
+    ${rows ? `<details><summary>Recent uploads (${c.recent.length})</summary><div class="scroll">
+      <table><thead><tr><th>Video</th><th class="n">YT views</th><th class="n">TikTok views</th><th class="n">Date</th></tr></thead>
+      <tbody>${rows}</tbody></table></div></details>` : ''}
+  </section>`;
+}
+
+function render(p) {
+  const when = new Date(p.generated_at);
+  app.innerHTML = `
+    <header>
+      <h1>Uploads</h1>
+      <span class="muted">updated ${esc(when.toLocaleString([], {dateStyle:'medium', timeStyle:'short'}))}
+      ${p.has_youtube_stats ? '' : ' · no YouTube API key yet, so subs/views are hidden'}</span>
+    </header>
+    ${p.channels.map(channelCard).join('')}
+    <p class="muted">${p.channels.length} channel(s) · times shown in your local timezone ·
+      rebuilt every 30 minutes</p>`;
+
+  app.querySelectorAll('.hit').forEach(el => {
+    const show = e => {
+      const t = (e.touches ? e.touches[0] : e);
+      tip.textContent = el.dataset.t;
+      tip.style.opacity = 1;
+      tip.style.left = Math.min(t.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px';
+      tip.style.top = (t.clientY - 34) + 'px';
+    };
+    el.addEventListener('mouseenter', show);
+    el.addEventListener('mousemove', show);
+    el.addEventListener('touchstart', show, {passive: true});
+    el.addEventListener('mouseleave', () => tip.style.opacity = 0);
+  });
+}
+
+load();
+setInterval(load, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

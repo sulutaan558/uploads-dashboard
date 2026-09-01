@@ -1,0 +1,47 @@
+name: Sync dashboard data
+
+# Walks every tiktok-yt-automation-* repo and republishes docs/data.enc.
+# A new channel needs no change here -- it is discovered by repo name.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dashboard-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -q requests pyyaml cryptography
+
+      - name: Collect and encrypt
+        env:
+          # a PAT, not the built-in token: this job reads OTHER (private) repos
+          GITHUB_TOKEN: ${{ secrets.CHANNELS_READ_TOKEN }}
+          DASHBOARD_KEY: ${{ secrets.DASHBOARD_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python sync.py
+
+      - name: Publish
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f docs/data.enc docs/version.json
+          if git diff --cached --quiet; then
+            echo "nothing changed"; exit 0
+          fi
+          git commit -q -m "data: $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin HEAD:main
